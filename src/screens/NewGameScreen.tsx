@@ -1,16 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { Alert, Pressable, SafeAreaView, Text, View } from "react-native";
+import { Alert, BackHandler, Pressable, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
+import GameOverModal from "../components/GameOverModal";
 import GameRulesModal from "../components/GameRulesModal";
 import NameModal from "../components/NameModal";
 
+import { NUMBER_COLORS } from "../constants/colors";
 import styles from "../styles/gameStyles";
 
 import {
     Board,
     countFilledCells,
-    countUserFilledCells,
     generateSudoku,
     isBoardComplete,
     removeRandomUserNumber,
@@ -21,7 +23,10 @@ import {
     deleteCurrentGame,
     saveCurrentGame,
     saveScore,
+    SavedGame,
 } from "../utils/gameStorage";
+
+import { vibrateNumberVanish, warnBoardFlip } from "../utils/haptics";
 
 export type DifficultyConfig = {
   name: string;
@@ -43,7 +48,9 @@ export type DifficultyConfig = {
   maxMistakes: number;
 };
 
-export const DIFFICULTIES: Record<string, DifficultyConfig> = {
+export type DifficultyKey = "easy" | "medium" | "hard";
+
+export const DIFFICULTIES: Record<DifficultyKey, DifficultyConfig> = {
   easy: {
     name: "EASY",
 
@@ -94,16 +101,24 @@ export const DIFFICULTIES: Record<string, DifficultyConfig> = {
 };
 
 type Props = {
-  difficulty?: keyof typeof DIFFICULTIES;
+  difficulty?: DifficultyKey;
+  initialGame?: SavedGame;
+  onExit: () => void;
 };
 
-type FlipDirection = "none" | "horizontal" | "vertical";
+export default function NewGameScreen({
+  difficulty = "medium",
+  initialGame,
+  onExit,
+}: Props) {
+  const [selectedDifficulty, setSelectedDifficulty] = useState<DifficultyKey>(
+    (initialGame?.difficulty as DifficultyKey) ?? difficulty,
+  );
 
-export default function NewGameScreen({ difficulty = "medium" }: Props) {
-  const config = DIFFICULTIES[difficulty];
+  const config = DIFFICULTIES[selectedDifficulty];
 
   const [board, setBoard] = useState<Board>(() =>
-    generateSudoku(config.puzzleRemoval),
+    initialGame ? initialGame.board : generateSudoku(config.puzzleRemoval),
   );
 
   const [selectedCell, setSelectedCell] = useState<{
@@ -111,27 +126,43 @@ export default function NewGameScreen({ difficulty = "medium" }: Props) {
     col: number;
   } | null>(null);
 
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [elapsedSeconds, setElapsedSeconds] = useState(
+    initialGame?.elapsedSeconds ?? 0,
+  );
 
-  const [mistakes, setMistakes] = useState(0);
+  const [mistakes, setMistakes] = useState(initialGame?.mistakes ?? 0);
 
-  const [showRules, setShowRules] = useState(true);
+  const [showRules, setShowRules] = useState(!initialGame);
 
   const [showNameModal, setShowNameModal] = useState(false);
 
-  const [gameStarted, setGameStarted] = useState(false);
+  const [gameStarted, setGameStarted] = useState(!!initialGame);
 
-  const [flipDirection, setFlipDirection] = useState<FlipDirection>("none");
+  const [flipped, setFlipped] = useState({
+    horizontal: initialGame?.flippedHorizontal ?? false,
+    vertical: initialGame?.flippedVertical ?? false,
+  });
 
-  const [flipCount, setFlipCount] = useState(0);
+  const [flipWarningVisible, setFlipWarningVisible] = useState(false);
 
-  const lastFlipAt = useRef(0);
+  const [flipCount, setFlipCount] = useState(initialGame?.flipCount ?? 0);
+
+  const [wrongCell, setWrongCell] = useState<{
+    row: number;
+    col: number;
+    value: number;
+  } | null>(null);
+
+  const lastFlipAt = useRef(initialGame?.lastFlipAt ?? 0);
+  const lastVanishAt = useRef(0);
+  const flipWarningTimeout = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const wrongCellTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const gameOver = mistakes >= config.maxMistakes;
 
   const filledPercentage = countFilledCells(board) / 81;
-
-  const userFilledPercentage = countUserFilledCells(board) / 81;
 
   // ------------------------------------
   // START
@@ -141,6 +172,51 @@ export default function NewGameScreen({ difficulty = "medium" }: Props) {
     setShowRules(false);
     setGameStarted(true);
   }, []);
+
+  const handleSelectDifficulty = useCallback(
+    (key: DifficultyKey) => {
+      if (gameStarted) {
+        return;
+      }
+
+      setSelectedDifficulty(key);
+      setBoard(generateSudoku(DIFFICULTIES[key].puzzleRemoval));
+      setSelectedCell(null);
+    },
+    [gameStarted],
+  );
+
+  // ------------------------------------
+  // EXIT CONFIRMATION
+  // ------------------------------------
+
+  const confirmExit = useCallback(() => {
+    if (!gameStarted || gameOver) {
+      onExit();
+      return;
+    }
+
+    Alert.alert(
+      "LEAVE GAME?",
+      "Your progress is saved, but the timer and board effects will stop for now.",
+      [
+        { text: "CANCEL", style: "cancel" },
+        { text: "LEAVE", style: "destructive", onPress: onExit },
+      ],
+    );
+  }, [gameStarted, gameOver, onExit]);
+
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener(
+      "hardwareBackPress",
+      () => {
+        confirmExit();
+        return true;
+      },
+    );
+
+    return () => subscription.remove();
+  }, [confirmExit]);
 
   // ------------------------------------
   // TIMER
@@ -186,14 +262,26 @@ export default function NewGameScreen({ difficulty = "medium" }: Props) {
       return;
     }
 
-    setBoard((previousBoard: any) => {
-      const currentPercentage = countFilledCells(previousBoard) / 81;
+    if (lastVanishAt.current === elapsedSeconds) {
+      return;
+    }
 
-      if (currentPercentage <= config.vanishMinimumPercent) {
+    lastVanishAt.current = elapsedSeconds;
+
+    setBoard((previousBoard) => {
+      const beforeCount = countFilledCells(previousBoard);
+
+      if (beforeCount / 81 <= config.vanishMinimumPercent) {
         return previousBoard;
       }
 
-      return removeRandomUserNumber(previousBoard);
+      const nextBoard = removeRandomUserNumber(previousBoard);
+
+      if (countFilledCells(nextBoard) < beforeCount) {
+        vibrateNumberVanish();
+      }
+
+      return nextBoard;
     });
   }, [elapsedSeconds, filledPercentage, gameStarted, gameOver, config]);
 
@@ -223,11 +311,39 @@ export default function NewGameScreen({ difficulty = "medium" }: Props) {
 
     lastFlipAt.current = elapsedSeconds;
 
-    const direction = Math.random() > 0.5 ? "horizontal" : "vertical";
+    const axis = Math.random() > 0.5 ? "horizontal" : "vertical";
 
-    setFlipDirection(direction);
+    setFlipped((previous) => ({
+      ...previous,
+      [axis]: !previous[axis],
+    }));
+
     setFlipCount((previous) => previous + 1);
+
+    warnBoardFlip();
+
+    setFlipWarningVisible(true);
+
+    if (flipWarningTimeout.current) {
+      clearTimeout(flipWarningTimeout.current);
+    }
+
+    flipWarningTimeout.current = setTimeout(() => {
+      setFlipWarningVisible(false);
+    }, 2600);
   }, [elapsedSeconds, gameStarted, gameOver, config]);
+
+  useEffect(() => {
+    return () => {
+      if (flipWarningTimeout.current) {
+        clearTimeout(flipWarningTimeout.current);
+      }
+
+      if (wrongCellTimeout.current) {
+        clearTimeout(wrongCellTimeout.current);
+      }
+    };
+  }, []);
 
   // ------------------------------------
   // SAVE CURRENT GAME
@@ -245,7 +361,9 @@ export default function NewGameScreen({ difficulty = "medium" }: Props) {
         mistakes,
         lastFlipAt: lastFlipAt.current,
         flipCount,
-        difficulty,
+        flippedHorizontal: flipped.horizontal,
+        flippedVertical: flipped.vertical,
+        difficulty: selectedDifficulty,
       });
     }, 500);
 
@@ -255,11 +373,22 @@ export default function NewGameScreen({ difficulty = "medium" }: Props) {
     elapsedSeconds,
     mistakes,
     flipCount,
-    difficulty,
+    flipped,
+    selectedDifficulty,
     gameStarted,
     gameOver,
     showNameModal,
   ]);
+
+  // ------------------------------------
+  // GAME OVER CLEANUP
+  // ------------------------------------
+
+  useEffect(() => {
+    if (gameOver) {
+      deleteCurrentGame();
+    }
+  }, [gameOver]);
 
   // ------------------------------------
   // NUMBER INPUT
@@ -283,9 +412,15 @@ export default function NewGameScreen({ difficulty = "medium" }: Props) {
 
       setMistakes(nextMistakes);
 
-      if (nextMistakes >= config.maxMistakes) {
-        Alert.alert("GAME OVER", "You used all 4 mistakes.");
+      setWrongCell({ row, col, value: number });
+
+      if (wrongCellTimeout.current) {
+        clearTimeout(wrongCellTimeout.current);
       }
+
+      wrongCellTimeout.current = setTimeout(() => {
+        setWrongCell(null);
+      }, 700);
 
       return;
     }
@@ -322,6 +457,7 @@ export default function NewGameScreen({ difficulty = "medium" }: Props) {
     });
 
     setShowNameModal(false);
+    onExit();
   };
 
   // ------------------------------------
@@ -341,16 +477,8 @@ export default function NewGameScreen({ difficulty = "medium" }: Props) {
   // ------------------------------------
 
   const getVisualPosition = (row: number, col: number) => {
-    let visualRow = row;
-    let visualCol = col;
-
-    if (flipDirection === "vertical") {
-      visualRow = 8 - row;
-    }
-
-    if (flipDirection === "horizontal") {
-      visualCol = 8 - col;
-    }
+    const visualRow = flipped.vertical ? 8 - row : row;
+    const visualCol = flipped.horizontal ? 8 - col : col;
 
     return {
       row: visualRow,
@@ -374,14 +502,34 @@ export default function NewGameScreen({ difficulty = "medium" }: Props) {
     <SafeAreaView style={styles.gameSafeArea}>
       <View style={styles.gameContainer}>
         {/* -------------------------------- */}
+        {/* FLIP WARNING */}
+        {/* -------------------------------- */}
+
+        {flipWarningVisible && (
+          <View style={styles.flipWarningBanner}>
+            <Text style={styles.flipWarningText}>⚠ BOARD FLIPPED!</Text>
+          </View>
+        )}
+
+        {/* -------------------------------- */}
         {/* HEADER */}
         {/* -------------------------------- */}
 
         <View style={styles.gameHeader}>
-          <View>
-            <Text style={styles.gameSmallTitle}>VUDDOKU</Text>
+          <View style={styles.headerLeft}>
+            <Pressable
+              onPress={confirmExit}
+              hitSlop={10}
+              style={styles.exitButton}
+            >
+              <Text style={styles.exitButtonText}>‹ MENU</Text>
+            </Pressable>
 
-            <Text style={styles.difficultyText}>{config.name}</Text>
+            <View>
+              <Text style={styles.gameSmallTitle}>VUDDOKU</Text>
+
+              <Text style={styles.difficultyText}>{config.name}</Text>
+            </View>
           </View>
 
           <View style={styles.timerBox}>
@@ -431,8 +579,12 @@ export default function NewGameScreen({ difficulty = "medium" }: Props) {
               const selected =
                 selectedCell?.row === row && selectedCell?.col === col;
 
-              const isRed =
-                !cell.given && cell.value !== 0 && cell.value !== cell.solution;
+              const isWrongPreview =
+                wrongCell?.row === row && wrongCell?.col === col;
+
+              const displayValue = isWrongPreview
+                ? wrongCell.value
+                : cell.value;
 
               return (
                 <Pressable
@@ -452,16 +604,17 @@ export default function NewGameScreen({ difficulty = "medium" }: Props) {
                     selected && styles.selectedCell,
                   ]}
                 >
-                  {cell.value !== 0 && (
+                  {displayValue !== 0 && (
                     <Text
                       style={[
                         styles.cellNumber,
+                        { color: NUMBER_COLORS[displayValue] },
                         cell.given && styles.givenNumber,
                         cell.userFilled && styles.userNumber,
-                        isRed && styles.wrongNumber,
+                        isWrongPreview && styles.wrongNumber,
                       ]}
                     >
-                      {cell.value}
+                      {displayValue}
                     </Text>
                   )}
                 </Pressable>
@@ -484,7 +637,14 @@ export default function NewGameScreen({ difficulty = "medium" }: Props) {
                 pressed && styles.numberButtonPressed,
               ]}
             >
-              <Text style={styles.numberButtonText}>{number}</Text>
+              <Text
+                style={[
+                  styles.numberButtonText,
+                  { color: NUMBER_COLORS[number] },
+                ]}
+              >
+                {number}
+              </Text>
             </Pressable>
           ))}
         </View>
@@ -497,17 +657,18 @@ export default function NewGameScreen({ difficulty = "medium" }: Props) {
           {filledPercentage >= config.vanishStartPercent && (
             <Text style={styles.warningText}>NUMBERS CAN VANISH</Text>
           )}
-
-          {flipDirection !== "none" && (
-            <Text style={styles.flipText}>BOARD FLIPPED</Text>
-          )}
         </View>
 
         {/* -------------------------------- */}
         {/* RULES */}
         {/* -------------------------------- */}
 
-        <GameRulesModal visible={showRules} onStart={startGame} />
+        <GameRulesModal
+          visible={showRules}
+          difficulty={selectedDifficulty}
+          onSelectDifficulty={handleSelectDifficulty}
+          onStart={startGame}
+        />
 
         {/* -------------------------------- */}
         {/* SCORE NAME */}
@@ -517,7 +678,18 @@ export default function NewGameScreen({ difficulty = "medium" }: Props) {
           visible={showNameModal}
           time={elapsedSeconds}
           mistakes={mistakes}
+          maxMistakes={config.maxMistakes}
           onSave={handleSaveScore}
+        />
+
+        {/* -------------------------------- */}
+        {/* GAME OVER */}
+        {/* -------------------------------- */}
+
+        <GameOverModal
+          visible={gameOver}
+          maxMistakes={config.maxMistakes}
+          onExit={onExit}
         />
       </View>
     </SafeAreaView>

@@ -11,6 +11,8 @@ export type SavedGame = {
   mistakes: number;
   lastFlipAt: number;
   flipCount: number;
+  flippedHorizontal: boolean;
+  flippedVertical: boolean;
   difficulty: string;
 };
 
