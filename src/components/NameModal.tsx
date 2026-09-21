@@ -8,10 +8,17 @@ type Props = {
   visible: boolean;
   time: number;
   mistakes: number;
+  maxMistakes: number;
   onSave: (name: string) => void;
 };
 
-export default function NameModal({ visible, time, mistakes, onSave }: Props) {
+export default function NameModal({
+  visible,
+  time,
+  mistakes,
+  maxMistakes,
+  onSave,
+}: Props) {
   const [name, setName] = useState("");
 
   const handleSave = () => {
@@ -50,7 +57,9 @@ export default function NameModal({ visible, time, mistakes, onSave }: Props) {
             <View>
               <Text style={styles.resultLabel}>MISTAKES</Text>
 
-              <Text style={styles.resultValue}>{mistakes}/4</Text>
+              <Text style={styles.resultValue}>
+                {mistakes}/{maxMistakes}
+              </Text>
             </View>
           </View>
 

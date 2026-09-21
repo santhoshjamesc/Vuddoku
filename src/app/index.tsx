@@ -1,20 +1,24 @@
-import { useEffect, useState } from "react";
-import { Pressable, SafeAreaView, StatusBar, Text, View } from "react-native";
+import { useCallback, useEffect, useState } from "react";
+import {
+  Alert,
+  BackHandler,
+  Pressable,
+  ScrollView,
+  StatusBar,
+  Text,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
+import { COLORS } from "../constants/colors";
+import AboutScreen from "../screens/AboutScreen";
+import HighScoresScreen from "../screens/HighScoresScreen";
 import NewGameScreen from "../screens/NewGameScreen";
-import { loadCurrentGame } from "../utils/gameStorage";
-import styles from "./styles";
+import { loadCurrentGame, SavedGame } from "../utils/gameStorage";
+import { exitApp } from "../utils/exitApp";
+import styles from "../styles/menuStyles";
 
-const COLORS = {
-  paper: "#F2E8D5",
-  black: "#111111",
-  red: "#D7262E",
-  blue: "#1746D1",
-  yellow: "#F4C430",
-  white: "#FFFFFF",
-};
-
-type Screen = "menu" | "newGame" | "continue";
+type Screen = "menu" | "newGame" | "continue" | "highScores" | "about";
 
 type MenuButtonProps = {
   title: string;
@@ -71,29 +75,29 @@ const MiniGrid = () => {
 export default function App() {
   const [screen, setScreen] = useState<Screen>("menu");
   const [hasSavedGame, setHasSavedGame] = useState(false);
+  const [savedGame, setSavedGame] = useState<SavedGame | null>(null);
 
-  useEffect(() => {
-    checkSavedGame();
-  }, []);
-
-  const checkSavedGame = async () => {
+  const checkSavedGame = useCallback(async () => {
     try {
-      const savedGame = await loadCurrentGame();
-      setHasSavedGame(!!savedGame);
+      const game = await loadCurrentGame();
+      setSavedGame(game);
+      setHasSavedGame(!!game);
     } catch (error) {
       console.log("Failed to load saved game:", error);
+      setSavedGame(null);
       setHasSavedGame(false);
     }
-  };
+  }, []);
 
   const continueGame = async () => {
     try {
-      const savedGame = await loadCurrentGame();
+      const game = await loadCurrentGame();
 
-      if (!savedGame) {
+      if (!game) {
         return;
       }
 
+      setSavedGame(game);
       setScreen("continue");
     } catch (error) {
       console.log("Failed to continue game:", error);
@@ -105,17 +109,43 @@ export default function App() {
   };
 
   const highScores = () => {
-    console.log("High Scores");
+    setScreen("highScores");
+  };
+
+  const about = () => {
+    setScreen("about");
   };
 
   const settings = () => {
-    console.log("Settings");
+    Alert.alert("SETTINGS", "Settings are coming soon.");
   };
 
-  const goToMenu = () => {
+  const goToMenu = useCallback(() => {
     setScreen("menu");
     checkSavedGame();
-  };
+  }, [checkSavedGame]);
+
+  useEffect(() => {
+    // Loads persisted state from AsyncStorage on mount - not derivable during render.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    checkSavedGame();
+  }, [checkSavedGame]);
+
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener(
+      "hardwareBackPress",
+      () => {
+        if (screen !== "menu") {
+          goToMenu();
+          return true;
+        }
+
+        return false;
+      },
+    );
+
+    return () => subscription.remove();
+  }, [screen, goToMenu]);
 
   /*
    * NEW GAME
@@ -126,13 +156,23 @@ export default function App() {
 
   /*
    * CONTINUE
-   *
-   * The NewGameScreen should receive the saved game here.
-   * If your current NewGameScreen does not yet support
-   * `initialGame`, add that prop to it.
    */
-  if (screen === "continue") {
-    return <NewGameScreen initialGame={undefined} onExit={goToMenu} />;
+  if (screen === "continue" && savedGame) {
+    return <NewGameScreen initialGame={savedGame} onExit={goToMenu} />;
+  }
+
+  /*
+   * HIGH SCORES
+   */
+  if (screen === "highScores") {
+    return <HighScoresScreen onExit={goToMenu} />;
+  }
+
+  /*
+   * ABOUT
+   */
+  if (screen === "about") {
+    return <AboutScreen onExit={goToMenu} />;
   }
 
   /*
@@ -148,59 +188,77 @@ export default function App() {
         <View style={styles.blueCircle} />
         <View style={styles.yellowSquare} />
 
-        {/* Logo */}
-        <View style={styles.logoSection}>
-          <MiniGrid />
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Logo */}
+          <View style={styles.logoSection}>
+            <MiniGrid />
 
-          <View style={styles.logoTextContainer}>
-            <Text style={styles.logo}>VUDDOKU</Text>
+            <View style={styles.logoTextContainer}>
+              <Text style={styles.logo}>VUDDOKU</Text>
 
-            <View style={styles.logoUnderline} />
+              <View style={styles.logoUnderline} />
 
-            <Text style={styles.logoSub}>LOGIC / ORDER / PLAY</Text>
-          </View>
-        </View>
-
-        {/* Menu */}
-        <View style={styles.menu}>
-          <MenuButton
-            title="CONTINUE"
-            color={COLORS.blue}
-            onPress={continueGame}
-            disabled={!hasSavedGame}
-          />
-
-          <MenuButton title="NEW GAME" color={COLORS.red} onPress={newGame} />
-
-          <MenuButton
-            title="HIGH SCORES"
-            color={COLORS.yellow}
-            textColor={COLORS.black}
-            onPress={highScores}
-          />
-
-          <MenuButton
-            title="SETTINGS"
-            color={COLORS.black}
-            onPress={settings}
-          />
-        </View>
-
-        {/* Footer */}
-        <View style={styles.bottom}>
-          <View style={styles.numberBox}>
-            <Text style={styles.number}>9</Text>
+              <Text style={styles.logoSub}>LOGIC / ORDER / PLAY</Text>
+            </View>
           </View>
 
-          <Text style={styles.bottomText}>
-            ONE GRID{"\n"}
-            NINE NUMBERS
-          </Text>
+          {/* Menu */}
+          <View style={styles.menu}>
+            <MenuButton
+              title="CONTINUE"
+              color={COLORS.blue}
+              onPress={continueGame}
+              disabled={!hasSavedGame}
+            />
 
-          <View style={styles.numberBoxRed}>
-            <Text style={styles.number}>81</Text>
+            <MenuButton
+              title="NEW GAME"
+              color={COLORS.red}
+              onPress={newGame}
+            />
+
+            <MenuButton
+              title="HIGH SCORES"
+              color={COLORS.yellow}
+              textColor={COLORS.black}
+              onPress={highScores}
+            />
+
+            <MenuButton
+              title="SETTINGS"
+              color={COLORS.black}
+              onPress={settings}
+            />
+
+            <MenuButton
+              title="ABOUT"
+              color={COLORS.white}
+              textColor={COLORS.black}
+              onPress={about}
+            />
+
+            <MenuButton title="EXIT" color={COLORS.grey} onPress={exitApp} />
           </View>
-        </View>
+
+          {/* Footer */}
+          <View style={styles.bottom}>
+            <View style={styles.numberBox}>
+              <Text style={styles.number}>9</Text>
+            </View>
+
+            <Text style={styles.bottomText}>
+              ONE GRID{"\n"}
+              NINE NUMBERS
+            </Text>
+
+            <View style={styles.numberBoxRed}>
+              <Text style={styles.number}>81</Text>
+            </View>
+          </View>
+        </ScrollView>
       </View>
     </SafeAreaView>
   );

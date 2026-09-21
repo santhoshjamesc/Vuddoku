@@ -1,13 +1,6 @@
 import { StyleSheet } from "react-native";
 
-const COLORS = {
-  paper: "#F2E8D5",
-  black: "#111111",
-  red: "#D7262E",
-  blue: "#1746D1",
-  yellow: "#F4C430",
-  white: "#FFFFFF",
-};
+import { COLORS } from "../constants/colors";
 
 const styles = StyleSheet.create({
   safeArea: {
@@ -18,10 +11,14 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.paper,
+    overflow: "hidden",
+  },
+
+  scrollContent: {
+    flexGrow: 1,
     paddingHorizontal: 26,
     paddingTop: 25,
     paddingBottom: 20,
-    overflow: "hidden",
   },
 
   // BAUHAUS SHAPES

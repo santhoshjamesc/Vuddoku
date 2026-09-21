@@ -1,13 +1,27 @@
 import { Modal, Pressable, ScrollView, Text, View } from "react-native";
 
+import { DifficultyKey } from "../screens/NewGameScreen";
 import styles from "../styles/gameStyles";
 
 type Props = {
   visible: boolean;
+  difficulty: DifficultyKey;
+  onSelectDifficulty: (difficulty: DifficultyKey) => void;
   onStart: () => void;
 };
 
-export default function GameRulesModal({ visible, onStart }: Props) {
+const DIFFICULTY_OPTIONS: { key: DifficultyKey; label: string }[] = [
+  { key: "easy", label: "EASY" },
+  { key: "medium", label: "MEDIUM" },
+  { key: "hard", label: "HARD" },
+];
+
+export default function GameRulesModal({
+  visible,
+  difficulty,
+  onSelectDifficulty,
+  onStart,
+}: Props) {
   return (
     <Modal visible={visible} transparent animationType="fade">
       <View style={styles.modalOverlay}>
@@ -17,6 +31,21 @@ export default function GameRulesModal({ visible, onStart }: Props) {
           <Text style={styles.rulesTitle}>VUDDOKU</Text>
 
           <Text style={styles.rulesHeading}>BEFORE YOU PLAY</Text>
+
+          <View style={styles.difficultyRow}>
+            {DIFFICULTY_OPTIONS.map((option) => (
+              <Pressable
+                key={option.key}
+                onPress={() => onSelectDifficulty(option.key)}
+                style={[
+                  styles.difficultyButton,
+                  difficulty === option.key && styles.difficultyButtonActive,
+                ]}
+              >
+                <Text style={styles.difficultyButtonText}>{option.label}</Text>
+              </Pressable>
+            ))}
+          </View>
 
           <ScrollView
             showsVerticalScrollIndicator={false}

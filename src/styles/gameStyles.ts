@@ -1,14 +1,6 @@
 import { StyleSheet } from "react-native";
 
-const COLORS = {
-  paper: "#F2E8D5",
-  black: "#111111",
-  red: "#D7262E",
-  blue: "#1746D1",
-  yellow: "#F4C430",
-  white: "#FFFFFF",
-  grey: "#777777",
-};
+import { COLORS } from "../constants/colors";
 
 const styles = StyleSheet.create({
   // =====================================
@@ -37,6 +29,28 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "flex-start",
     marginBottom: 12,
+  },
+
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+
+  exitButton: {
+    height: 32,
+    paddingHorizontal: 10,
+    borderWidth: 3,
+    borderColor: COLORS.black,
+    backgroundColor: COLORS.white,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  exitButtonText: {
+    fontSize: 12,
+    fontWeight: "900",
+    color: COLORS.black,
   },
 
   gameSmallTitle: {
@@ -163,21 +177,20 @@ const styles = StyleSheet.create({
   cellNumber: {
     fontSize: 22,
     fontWeight: "700",
-    color: COLORS.black,
   },
 
   givenNumber: {
-    color: COLORS.black,
     fontWeight: "900",
   },
 
   userNumber: {
-    color: COLORS.blue,
-    fontWeight: "900",
+    fontWeight: "700",
+    fontStyle: "italic",
   },
 
   wrongNumber: {
     color: COLORS.red,
+    fontStyle: "normal",
   },
 
   // =====================================
@@ -214,7 +227,6 @@ const styles = StyleSheet.create({
   numberButtonText: {
     fontSize: 20,
     fontWeight: "900",
-    color: COLORS.black,
   },
 
   // =====================================
@@ -234,9 +246,21 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
   },
 
-  flipText: {
-    color: COLORS.blue,
-    fontSize: 9,
+  flipWarningBanner: {
+    position: "absolute",
+    top: 6,
+    alignSelf: "center",
+    backgroundColor: COLORS.black,
+    borderWidth: 3,
+    borderColor: COLORS.yellow,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    zIndex: 10,
+  },
+
+  flipWarningText: {
+    color: COLORS.yellow,
+    fontSize: 12,
     fontWeight: "900",
     letterSpacing: 2,
   },
@@ -295,6 +319,33 @@ const styles = StyleSheet.create({
 
   rulesContent: {
     paddingBottom: 10,
+  },
+
+  difficultyRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 18,
+  },
+
+  difficultyButton: {
+    flex: 1,
+    height: 44,
+    borderWidth: 3,
+    borderColor: COLORS.black,
+    backgroundColor: COLORS.white,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  difficultyButtonActive: {
+    backgroundColor: COLORS.yellow,
+  },
+
+  difficultyButtonText: {
+    fontSize: 12,
+    fontWeight: "900",
+    letterSpacing: 1,
+    color: COLORS.black,
   },
 
   ruleRow: {
@@ -478,6 +529,192 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "900",
     letterSpacing: 1,
+  },
+
+  // =====================================
+  // GAME OVER MODAL
+  // =====================================
+
+  gameOverCard: {
+    width: "100%",
+    backgroundColor: COLORS.paper,
+    borderWidth: 5,
+    borderColor: COLORS.black,
+    padding: 24,
+    position: "relative",
+  },
+
+  gameOverRedBlock: {
+    position: "absolute",
+    width: 65,
+    height: 65,
+    backgroundColor: COLORS.red,
+    right: -20,
+    top: -20,
+    transform: [
+      {
+        rotate: "45deg",
+      },
+    ],
+  },
+
+  gameOverTitle: {
+    fontSize: 38,
+    fontWeight: "900",
+    letterSpacing: -2,
+    color: COLORS.red,
+    marginTop: 4,
+    marginBottom: 22,
+  },
+
+  menuButton: {
+    height: 57,
+    backgroundColor: COLORS.black,
+    borderWidth: 4,
+    borderColor: COLORS.black,
+    alignItems: "center",
+    justifyContent: "center",
+
+    shadowColor: COLORS.black,
+    shadowOffset: {
+      width: 5,
+      height: 5,
+    },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 0,
+  },
+
+  menuButtonText: {
+    color: COLORS.white,
+    fontSize: 16,
+    fontWeight: "900",
+    letterSpacing: 1,
+  },
+
+  // =====================================
+  // HIGH SCORES
+  // =====================================
+
+  scoresSafeArea: {
+    flex: 1,
+    backgroundColor: COLORS.paper,
+  },
+
+  scoresContainer: {
+    flex: 1,
+    backgroundColor: COLORS.paper,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+  },
+
+  scoresHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 18,
+  },
+
+  scoresTitle: {
+    fontSize: 32,
+    fontWeight: "900",
+    letterSpacing: -1,
+    color: COLORS.black,
+  },
+
+  scoresEmptyText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: COLORS.grey,
+    marginTop: 30,
+    textAlign: "center",
+  },
+
+  scoreRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderBottomWidth: 3,
+    borderColor: COLORS.black,
+    paddingVertical: 12,
+    gap: 10,
+  },
+
+  scoreRank: {
+    width: 28,
+    fontSize: 16,
+    fontWeight: "900",
+    color: COLORS.red,
+  },
+
+  scoreName: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "900",
+    color: COLORS.black,
+  },
+
+  scoreDifficulty: {
+    fontSize: 9,
+    fontWeight: "900",
+    letterSpacing: 1,
+    color: COLORS.blue,
+    marginTop: 2,
+  },
+
+  scoreTime: {
+    fontSize: 15,
+    fontWeight: "900",
+    color: COLORS.black,
+  },
+
+  scoreMistakes: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: COLORS.grey,
+    marginTop: 2,
+  },
+
+  // =====================================
+  // ABOUT
+  // =====================================
+
+  aboutCard: {
+    borderWidth: 4,
+    borderColor: COLORS.black,
+    backgroundColor: COLORS.white,
+    padding: 18,
+    marginTop: 4,
+    marginBottom: 24,
+  },
+
+  aboutHeading: {
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 2,
+    color: COLORS.blue,
+    marginBottom: 16,
+  },
+
+  aboutParagraph: {
+    fontSize: 14,
+    lineHeight: 21,
+    color: COLORS.black,
+    marginBottom: 14,
+  },
+
+  aboutSignatureName: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: COLORS.black,
+    marginTop: 2,
+  },
+
+  aboutSignatureRole: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 1,
+    color: COLORS.red,
+    marginTop: 2,
   },
 });
 

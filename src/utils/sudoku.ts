@@ -148,7 +148,7 @@ export function isBoardComplete(board: Board): boolean {
 export function removeRandomUserNumber(board: Board): Board {
   const newBoard = cloneBoard(board);
 
-  const candidates: Array<[number, number]> = [];
+  const candidates: [number, number][] = [];
 
   for (let row = 0; row < 9; row++) {
     for (let col = 0; col < 9; col++) {
